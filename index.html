@@ -1,0 +1,402 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>比特28 · 实时开奖</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #0f1420;
+    color: #e6ebf5;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  /* 顶部标题 */
+  .top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px; flex-wrap: wrap; gap: 10px;
+  }
+  .title { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  .title span { color: #4da3ff; }
+  .meta { font-size: 12px; color: #7b8798; }
+  .status-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #18c964; margin-right: 6px;
+    animation: pulse 1.6s infinite;
+  }
+  .status-dot.err { background: #ff5b5b; animation: none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* 最新一期大卡片 */
+  .latest {
+    background: linear-gradient(135deg, #1a2233 0%, #151b29 100%);
+    border: 1px solid #263149;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .latest::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, #4da3ff, #18c964, #ffb547);
+  }
+  .latest-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 10px;
+  }
+  .issue-no { font-size: 15px; color: #8fa3bf; }
+  .issue-no b { color: #fff; font-size: 20px; letter-spacing: 1px; }
+  .countdown {
+    font-size: 14px; color: #8fa3bf;
+    background: #1e2839; padding: 8px 16px; border-radius: 10px;
+    border: 1px solid #2a3651;
+  }
+  .countdown b { color: #4da3ff; font-size: 20px; font-variant-numeric: tabular-nums; }
+
+  .nums { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; }
+  .ball {
+    width: 72px; height: 72px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; font-weight: 800;
+    background: linear-gradient(145deg, #3d7bff, #2a5bd7);
+    box-shadow: 0 6px 20px rgba(61,123,255,.35), inset 0 -3px 8px rgba(0,0,0,.25);
+  }
+  .ball.b2 { background: linear-gradient(145deg, #ff7a45, #e05322); box-shadow: 0 6px 20px rgba(255,122,69,.32), inset 0 -3px 8px rgba(0,0,0,.25); }
+  .ball.b3 { background: linear-gradient(145deg, #ffb547, #e08a12); box-shadow: 0 6px 20px rgba(255,181,71,.32), inset 0 -3px 8px rgba(0,0,0,.25); }
+  .plus { font-size: 26px; color: #4a5a75; font-weight: 300; }
+  .eq { font-size: 26px; color: #4a5a75; font-weight: 300; }
+
+  .sum-box {
+    display: flex; align-items: center; gap: 10px; margin-left: 8px;
+  }
+  .sum-ball {
+    min-width: 72px; height: 72px; padding: 0 16px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 34px; font-weight: 800;
+    background: linear-gradient(145deg, #1fc76a, #128a48);
+    box-shadow: 0 6px 20px rgba(31,199,106,.3);
+  }
+  .tags { display: flex; flex-direction: column; gap: 6px; }
+  .tag {
+    padding: 6px 16px; border-radius: 8px; font-size: 15px; font-weight: 700;
+    text-align: center; letter-spacing: 1px;
+  }
+  .tag.dx-big  { background: rgba(255,91,91,.15); color: #ff7b7b; border: 1px solid rgba(255,91,91,.35); }
+  .tag.dx-small{ background: rgba(77,163,255,.15); color: #6fb5ff; border: 1px solid rgba(77,163,255,.35); }
+  .tag.ds-odd  { background: rgba(255,181,71,.15); color: #ffc76b; border: 1px solid rgba(255,181,71,.35); }
+  .tag.ds-even { background: rgba(31,199,106,.15); color: #4ee08c; border: 1px solid rgba(31,199,106,.35); }
+
+  /* 统计条 */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 18px;
+  }
+  .stat {
+    background: #151b29; border: 1px solid #232d42; border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .stat .k { font-size: 12px; color: #7b8798; margin-bottom: 6px; }
+  .stat .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .v.big { color: #ff7b7b; }
+  .stat .v.small { color: #6fb5ff; }
+  .stat .v.odd { color: #ffc76b; }
+  .stat .v.even { color: #4ee08c; }
+  .stat .sub { font-size: 11px; color: #5a6679; margin-top: 4px; }
+
+  /* 历史列表 */
+  .history {
+    background: #151b29; border: 1px solid #232d42; border-radius: 16px;
+    overflow: hidden;
+  }
+  .hist-head {
+    padding: 16px 20px; border-bottom: 1px solid #232d42;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 15px; font-weight: 600;
+  }
+  .hist-head .cnt { font-size: 12px; color: #7b8798; font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  thead th {
+    text-align: left; padding: 11px 20px; font-size: 12px; font-weight: 500;
+    color: #7b8798; background: #121828; border-bottom: 1px solid #232d42;
+    white-space: nowrap;
+  }
+  tbody td { padding: 12px 20px; border-bottom: 1px solid #1b2334; white-space: nowrap; }
+  tbody tr:hover { background: #1a2233; }
+  tbody tr:last-child td { border-bottom: none; }
+  .mini-nums { display: flex; gap: 6px; }
+  .mini {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    background: #24314a;
+  }
+  .mini.sum { background: #1f4a35; color: #4ee08c; width: auto; padding: 0 10px; border-radius: 8px; }
+  .pill { padding: 3px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+  .pill.big { background: rgba(255,91,91,.15); color: #ff7b7b; }
+  .pill.small { background: rgba(77,163,255,.15); color: #6fb5ff; }
+  .pill.odd { background: rgba(255,181,71,.15); color: #ffc76b; }
+  .pill.even { background: rgba(31,199,106,.15); color: #4ee08c; }
+  .new-row { animation: flash 1.5s ease-out; }
+  @keyframes flash { from { background: rgba(77,163,255,.18); } to { background: transparent; } }
+
+  .foot { text-align: center; color: #4a5a75; font-size: 12px; margin-top: 18px; line-height: 1.8; }
+  .err-tip {
+    display: none; background: rgba(255,91,91,.12); border: 1px solid rgba(255,91,91,.3);
+    color: #ff8f8f; padding: 10px 16px; border-radius: 10px; margin-bottom: 14px; font-size: 13px;
+  }
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    .ball { width: 54px; height: 54px; font-size: 24px; }
+    .sum-ball { min-width: 54px; height: 54px; font-size: 26px; }
+    .latest { padding: 16px; }
+    thead th, tbody td { padding: 10px 12px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="title">比特<span>28</span> · 实时开奖</div>
+    <div class="meta">
+      <span class="status-dot" id="dot"></span><span id="status">连接中...</span>
+      &nbsp;·&nbsp; 数据源 zssjems.com
+    </div>
+  </div>
+
+  <div class="err-tip" id="errTip"></div>
+
+  <!-- 最新一期 -->
+  <div class="latest">
+    <div class="latest-head">
+      <div class="issue-no">第 <b id="curIssue">--</b> 期</div>
+      <div class="countdown">下期开奖 <b id="cd">--</b></div>
+    </div>
+    <div class="nums" id="curNums">
+      <div class="ball" id="n1">-</div>
+      <div class="plus">+</div>
+      <div class="ball b2" id="n2">-</div>
+      <div class="plus">+</div>
+      <div class="ball b3" id="n3">-</div>
+      <div class="eq">=</div>
+      <div class="sum-box">
+        <div class="sum-ball" id="curSum">-</div>
+        <div class="tags">
+          <div class="tag" id="curDx">--</div>
+          <div class="tag" id="curDs">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 统计 -->
+  <div class="stats" id="stats"></div>
+
+  <!-- 历史 -->
+  <div class="history">
+    <div class="hist-head">
+      <span>开奖历史</span>
+      <span class="cnt" id="histCnt">--</span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>期号</th>
+          <th>时间</th>
+          <th>开奖号</th>
+          <th>和值</th>
+          <th>大小</th>
+          <th>单双</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="6" style="text-align:center;color:#5a6679;padding:30px">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    数据来源：zssjems.com 公开开奖页 · 仅供查看<br>
+    每 10 秒自动刷新 · 本页面不做任何下注操作
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var REFRESH_MS = 10000;
+  var lastIssue = null;
+
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function setStatus(ok, text) {
+    $('dot').className = 'status-dot' + (ok ? '' : ' err');
+    $('status').textContent = text;
+  }
+
+  function showErr(msg) {
+    var t = $('errTip');
+    t.textContent = msg;
+    t.style.display = 'block';
+  }
+  function hideErr() { $('errTip').style.display = 'none'; }
+
+  function renderStats(list) {
+    var n = list.length;
+    if (!n) { $('stats').innerHTML = ''; return; }
+    var big = 0, small = 0, odd = 0, even = 0, sumTotal = 0;
+    for (var i = 0; i < n; i++) {
+      var it = list[i];
+      if (it.dx === '大') big++; else if (it.dx === '小') small++;
+      if (it.ds === '单') odd++; else if (it.ds === '双') even++;
+      sumTotal += it.sum;
+    }
+    var pct = function (v) { return n ? (v * 100 / n).toFixed(1) + '%' : '0%'; };
+    var avg = n ? (sumTotal / n).toFixed(2) : '0';
+    $('stats').innerHTML =
+      '<div class="stat"><div class="k">大 / 小（近 ' + n + ' 期）</div>' +
+        '<div class="v big">' + big + ' <span style="color:#4a5a75;font-size:16px">/</span> <span class="v small" style="display:inline;font-size:22px">' + small + '</span></div>' +
+        '<div class="sub">' + pct(big) + ' / ' + pct(small) + '</div></div>' +
+      '<div class="stat"><div class="k">单 / 双（近 ' + n + ' 期）</div>' +
+        '<div class="v odd">' + odd + ' <span style="color:#4a5a75;font-size:16px">/</span> <span style="display:inline;font-size:22px;color:#4ee08c">' + even + '</span></div>' +
+        '<div class="sub">' + pct(odd) + ' / ' + pct(even) + '</div></div>' +
+      '<div class="stat"><div class="k">平均和值</div>' +
+        '<div class="v" style="color:#4da3ff">' + avg + '</div>' +
+        '<div class="sub">理论值 13.5</div></div>' +
+      '<div class="stat"><div class="k">当前期号</div>' +
+        '<div class="v" style="color:#fff;font-size:18px;letter-spacing:1px">' + esc(list[0].issue) + '</div>' +
+        '<div class="sub">最新 ' + esc(list[0].time) + '</div></div>';
+  }
+
+  // 倒计时状态（用服务端 stopTime + 本地流逝时间）
+  var cdBase = null;      // 服务端返回的剩余秒数
+  var cdAt = 0;           // 拿到它的本地时间戳
+  var cdText = null;      // 字符串状态（封盘中/开奖中）
+
+  function renderLatest(it, current) {
+    $('curIssue').textContent = it.issue;
+    $('n1').textContent = it.nums[0];
+    $('n2').textContent = it.nums[1];
+    $('n3').textContent = it.nums[2];
+    $('curSum').textContent = it.sum;
+
+    var dx = $('curDx'), ds = $('curDs');
+    dx.textContent = it.dx + '（' + (it.sum >= 14 ? '大' : '小') + '）';
+    dx.className = 'tag ' + (it.dx === '大' ? 'dx-big' : 'dx-small');
+    ds.textContent = it.ds;
+    ds.className = 'tag ' + (it.ds === '单' ? 'ds-odd' : 'ds-even');
+
+    // 倒计时：stopTime 可能是数字（剩余秒）或字符串（"封盘中"/"开奖中"）
+    if (current) {
+      var st = current.stopTime;
+      if (typeof st === 'number') {
+        cdBase = st;
+        cdAt = Date.now();
+        cdText = null;
+      } else if (typeof st === 'string' && st.length > 0) {
+        cdBase = null;
+        cdText = st;
+      }
+    }
+  }
+
+  function renderList(list, newestIssue) {
+    var show = list.slice(0, 30);
+    var html = '';
+    for (var i = 0; i < show.length; i++) {
+      var it = show[i];
+      var isNew = (lastIssue !== null && it.issue !== lastIssue && i === 0);
+      html += '<tr class="' + (isNew ? 'new-row' : '') + '">' +
+        '<td style="font-variant-numeric:tabular-nums">' + esc(it.issue) + '</td>' +
+        '<td class="hide-sm" style="color:#8fa3bf">' + esc(it.time) + '</td>' +
+        '<td><div class="mini-nums">' +
+          '<span class="mini">' + it.nums[0] + '</span>' +
+          '<span class="mini">' + it.nums[1] + '</span>' +
+          '<span class="mini">' + it.nums[2] + '</span>' +
+        '</div></td>' +
+        '<td><span class="mini sum">' + it.sum + '</span></td>' +
+        '<td><span class="pill ' + (it.dx === '大' ? 'big' : 'small') + '">' + esc(it.dx) + '</span></td>' +
+        '<td><span class="pill ' + (it.ds === '单' ? 'odd' : 'even') + '">' + esc(it.ds) + '</span></td>' +
+      '</tr>';
+    }
+    if (!html) html = '<tr><td colspan="6" style="text-align:center;color:#5a6679;padding:30px">暂无数据</td></tr>';
+    $('tbody').innerHTML = html;
+    $('histCnt').textContent = '共 ' + list.length + ' 期，显示最近 ' + show.length + ' 期';
+    lastIssue = newestIssue;
+  }
+
+  function tick() {
+    var el = $('cd');
+    // 字符串状态（封盘中/开奖中）
+    if (cdText) {
+      el.textContent = cdText;
+      el.style.color = cdText.indexOf('封盘') >= 0 ? '#ff5b5b' : '#ffb547';
+      return;
+    }
+    if (cdBase === null) { el.textContent = '--'; return; }
+    var elapsed = (Date.now() - cdAt) / 1000;
+    var left = cdBase - elapsed;
+    if (left <= 0) {
+      el.textContent = '开奖中...';
+      el.style.color = '#ffb547';
+      return;
+    }
+    el.textContent = Math.ceil(left) + ' 秒';
+    el.style.color = left <= 10 ? '#ff5b5b' : '#4da3ff';
+  }
+  setInterval(tick, 200);
+
+  function load() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/api/issues?_=' + Date.now(), true);
+    xhr.timeout = 20000;
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState !== 4) return;
+      if (xhr.status !== 200) {
+        setStatus(false, '抓取失败，自动重试');
+        showErr('获取开奖数据失败（HTTP ' + xhr.status + '），10 秒后自动重试。');
+        return;
+      }
+      var d;
+      try { d = JSON.parse(xhr.responseText); }
+      catch (e) {
+        setStatus(false, '数据格式错误');
+        showErr('返回数据不是合法 JSON。');
+        return;
+      }
+      if (!d || !d.ok || !d.issues || !d.issues.length) {
+        setStatus(false, '暂无数据');
+        showErr('服务器暂时没有返回开奖数据，稍后重试。');
+        return;
+      }
+      hideErr();
+      setStatus(true, '已连接 · ' + d.fetched_at);
+      renderLatest(d.issues[0], d.current);
+      renderStats(d.issues);
+      renderList(d.issues, d.issues[0].issue);
+    };
+    xhr.ontimeout = function () {
+      setStatus(false, '请求超时');
+      showErr('请求开奖数据超时，10 秒后重试。');
+    };
+    xhr.send();
+  }
+
+  load();
+  setInterval(load, REFRESH_MS);
+})();
+</script>
+</body>
+</html>
